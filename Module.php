@@ -372,7 +372,6 @@ class Module extends AbstractModule
 
         // Get the pdf.
         $hasPdf = false;
-        $targetFilename = null;
         /** @var \Omeka\Entity\Media $media */
         foreach ($item->getMedia() as $media) {
             $mediaType = $media->getMediaType();
@@ -392,7 +391,7 @@ class Module extends AbstractModule
         $targetFilenameNoExtension = strlen($filename)
             ? basename($filename, '.pdf')
             : $media->id() . '-' . $media->getStorageId();
-        if (!$targetFilename) {
+        if (!$targetFilenameNoExtension) {
             return;
         }
 
@@ -419,12 +418,13 @@ class Module extends AbstractModule
             foreach ($targetTypesFiles as $targetTypeFile) {
                 $targetExtension = $extensions[$targetTypeFile];
                 $targetDirPath = $dirPaths[$targetExtension];
-                $localSearchFilepath = $basePath . '/' . $targetDirPath . '/' . $item->id() . '.' . $targetExtension;
+                $localSearchFilepath = $basePath . '/' . $targetDirPath . '/' . $item->getId() . '.' . $targetExtension;
                 if (file_exists($localSearchFilepath)) {
                     $existingFiles[$targetTypeFile] = true;
                 }
             }
         }
+
         $existingMedias = array_fill_keys($targetTypesMedia, false);
         if ($targetTypesMedia) {
             foreach ($targetTypesMedia as $targetMediaType) {
