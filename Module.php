@@ -334,7 +334,7 @@ class Module extends AbstractModule
             '</a>',
             sprintf(
                 '<a href="%s">',
-                class_exists('Log\Module')
+                class_exists('Log\Module', false)
                     ? htmlspecialchars($controller->url()->fromRoute('admin/default', ['controller' => 'log'], ['query' => ['job_id' => $job->getId()]]))
                     : htmlspecialchars($controller->url()->fromRoute('admin/id', ['controller' => 'job', 'id' => $job->getId(), 'action' => 'log']))
             )
@@ -446,7 +446,7 @@ class Module extends AbstractModule
             'mode' => 'all',
             'base_uri' => $this->getBaseUri(),
             'item_id' => $item->getId(),
-            // FIXME Currently impossible to save text with event api.update.post;
+            // FIXME Currently impossible to save text with event api.update.post.
             'manual' => true,
         ];
         $services->get('Omeka\Job\Dispatcher')->dispatch(\ExtractOcr\Job\ExtractOcr::class, $params);

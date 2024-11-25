@@ -126,9 +126,9 @@ class ExtractOcr extends AbstractJob
 
         if (!$this->checkDestinationDir($this->basePath . '/temp')) {
             $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
-            $this->logger->err(new Message(
+            $this->logger->err(
                 'The temporary directory "files/temp" is not writeable. Fix rights or create it manually.' // @translate
-            ));
+            );
             return;
         }
 
@@ -295,7 +295,7 @@ class ExtractOcr extends AbstractJob
 
         $message = new Message(sprintf(
             'Formats of xml files to create: %s.', // @translate,
-            implode(', ', array_intersect_key($formats, $targetTypesMedia))
+            implode(', ', array_keys(array_intersect_key($formats, array_flip($targetTypesMedia))))
         ));
 
         if ($mode === 'existing') {
@@ -366,9 +366,9 @@ class ExtractOcr extends AbstractJob
             }
         }
         if (count($targetTypesMedia) > 1) {
-            $this->logger->notice(new Message(
+            $this->logger->notice(
                 'End of processing formats.', // @translate
-            ));
+            );
         }
     }
 
