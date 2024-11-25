@@ -110,6 +110,7 @@ class ConfigForm extends Form
             ])
         ;
 
+        // Adapted in Module.
         $this->get('extractocr_extractor')
             ->add([
                 'name' => 'mode',

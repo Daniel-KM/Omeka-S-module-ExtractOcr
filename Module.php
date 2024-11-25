@@ -223,6 +223,18 @@ class Module extends AbstractModule
             'api.update.post',
             [$this, 'extractOcr']
         );
+
+        // Add a job to upgrade structures once from v3.
+        $sharedEventManager->attach(
+            \EasyAdmin\Form\CheckAndFixForm::class,
+            'form.add_elements',
+            [$this, 'handleEasyAdminJobsForm']
+        );
+        $sharedEventManager->attach(
+            \EasyAdmin\Controller\Admin\CheckAndFixController::class,
+            'easyadmin.job',
+            [$this, 'handleEasyAdminJobs']
+        );
     }
 
     /**
@@ -544,5 +556,75 @@ class Module extends AbstractModule
             return null;
         }
         return $dirPath;
+    }
+
+    public function handleEasyAdminJobsForm(Event $event): void
+    {
+        /**
+         * @var \EasyAdmin\Form\CheckAndFixForm $form
+         * @var \Laminas\Form\Element\Radio $process
+         * @var \ExtractOcr\Form\ConfigForm $configForm
+         */
+        $form = $event->getTarget();
+        $fieldset = $form->get('module_tasks');
+        $process = $fieldset->get('process');
+        $valueOptions = $process->getValueOptions();
+        $valueOptions['extractocr_extractor'] = 'Extract OCR: Extract ocr from files'; // @translate
+        $process->setValueOptions($valueOptions);
+
+        // $configForm = $this->getServiceLocator()->get('FormElementManager')
+        //     ->get(\ExtractOcr\Form\ConfigForm::class);
+        $fieldset
+            ->add([
+                'type' => \Laminas\Form\Fieldset::class,
+                'name' => 'extractocr_extractor',
+                'options' => [
+                    'label' => 'Options to extract OCR', // @translate
+                ],
+                'attributes' => [
+                    'class' => 'extractocr_extractor',
+                ],
+            ])
+            ->get('extractocr_extractor')
+            ->add([
+                'name' => 'mode',
+                'type' => \Common\Form\Element\OptionalRadio::class,
+                'options' => [
+                    'label' => 'Extract OCR job', // @translate
+                    'value_options' => [
+                        'existing' => 'Only already extracted (improve extraction)', // @translate
+                        'missing' => 'Only missing extracted medias', // @translate
+                        'all' => 'All medias', // @translate
+                    ],
+                ],
+                'attributes' => [
+                    'id' => 'mode',
+                    'value' => 'all',
+                ],
+            ])
+            ->add([
+                'name' => 'item_ids',
+                'type' => \Laminas\Form\Element\Text::class,
+                'options' => [
+                    'label' => 'Item ids', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'item_ids',
+                    'placeholder' => '2-6 8 38-52 80-', // @ translate
+                ],
+            ])
+        ;
+    }
+
+    public function handleEasyAdminJobs(Event $event): void
+    {
+        $process = $event->getParam('process');
+        if ($process === 'extractocr_extractor') {
+            $params = $event->getParam('params');
+            $event->setParam('job', \ExtractOcr\Job\ExtractOcr::class);
+            $args = $params['module_tasks']['extractocr_extractor'] ?? [];
+            $args['base_uri'] = $this->getBaseUri();
+            $event->setParam('args', $args);
+        }
     }
 }
