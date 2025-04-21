@@ -114,101 +114,11 @@ class Module extends AbstractModule
         }
     }
 
-    public function upgrade($oldVersion, $newVersion, ServiceLocatorInterface $services)
+    public function upgrade($oldVersion, $newVersion, ServiceLocatorInterface $services): void
     {
+        $filepath = __DIR__ . '/data/scripts/upgrade.php';
         $this->setServiceLocator($services);
-
-        $plugins = $services->get('ControllerPluginManager');
-        $settings = $services->get('Omeka\Settings');
-        $translator = $services->get('MvcTranslator');
-        $messenger = $plugins->get('messenger');
-
-        if (version_compare((string) $oldVersion, '3.4.5', '<')) {
-            $message = new Message('A new option allows to create xml as alto multi-pages.'); // @translate
-            // Default is alto on install, but pdf2xml during upgrade.
-            $settings->set('extractocr_media_type', 'application/vnd.pdf2xml+xml');
-            $messenger->addSuccess($message);
-        }
-
-        if (version_compare((string) $oldVersion, '3.4.6', '<')) {
-            $settings->set('extractocr_create_empty_file', $settings->get('extractocr_create_empty_xml', false));
-            $settings->delete('extractocr_create_empty_xml');
-            $message = new Message('A new option allows to export OCR into tsv format for quicker search results. Data should be reindexed with format TSV.'); // @translate
-            $messenger->addSuccess($message);
-        }
-
-        if (version_compare((string) $oldVersion, '3.4.7', '<')) {
-            $config = $services->get('Config');
-            $basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
-
-            if (!$this->checkDestinationDir($basePath . '/temp')) {
-                $message = new Message(
-                    $translator->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
-                    $basePath . '/temp'
-                );
-                throw new ModuleCannotInstallException($message);
-            }
-
-            if (!$this->checkDestinationDir($basePath . '/iiif-search')) {
-                $message = new Message(
-                    $translator->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
-                    $basePath . '/iiif-search'
-                );
-                throw new ModuleCannotInstallException($message);
-            }
-
-            if (!$this->checkDestinationDir($basePath . '/alto')) {
-                $message = new Message(
-                    $translator->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
-                    $basePath . '/alto'
-                );
-                throw new ModuleCannotInstallException($message);
-            }
-
-            if (!$this->checkDestinationDir($basePath . '/pdf2xml')) {
-                $message = new Message(
-                    $translator->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
-                    $basePath . '/pdf2xml'
-                );
-                throw new ModuleCannotInstallException($message);
-            }
-
-            $contentStore = $settings->get('extractocr_content_store', []);
-            $pos = array_search('media_xml', $contentStore);
-            if ($pos !== false) {
-                unset($contentStore[$pos]);
-                $contentStore[] = 'media_extracted';
-                $settings->set('extractocr_content_store', array_values($contentStore));
-            }
-
-            $settings->set('extractocr_create_media', true);
-            $message = new Message(
-                'A new option allows to store the file separately of the item. You can enable it by default.' // @translate
-            );
-            $messenger->addSuccess($message);
-
-            $extractMediaType = $settings->get('extractocr_media_type', 'text/tab-separated-values') ?: 'text/tab-separated-values';
-            $settings->set('extractocr_media_types', [$extractMediaType]);
-            $settings->delete('extractocr_media_type');
-
-            // The option is set true above during upgrade to keep old process.
-            $settings->set('extractocr_types_files', []);
-            $settings->set('extractocr_types_media', [$extractMediaType]);
-            $settings->delete('extractocr_media_types');
-            $settings->delete('extractocr_create_media');
-
-            $message = new Message(
-                'It is now possible to store multiple extracted files and medias, for example one for quick search and another one to display transcription.' // @translate
-            );
-            $messenger->addSuccess($message);
-
-            $message = new Message(
-                'In order to manage multiple derivative files and to avoid collisions with native files, the names of the file were updated. You should remove all existing created files (via search media by media type then delete) then recreate them all (via the job in config form).' // @translate
-            );
-            $messenger->addWarning($message);
-        }
-
-        $this->allowFileFormats();
+        require_once $filepath;
     }
 
     /**
