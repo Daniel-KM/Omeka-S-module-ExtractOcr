@@ -130,6 +130,22 @@ class ExtractOcr extends AbstractJob
         $this->baseUri = $this->getArg('base_uri');
         $this->basePath = $services->get('Config')['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
 
+        if ((int) shell_exec('hash pdftotext 2>&- || echo 1')) {
+            $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
+            $this->logger->err(
+                'The command-line utility pdftotext is not available. Install the package poppler-utils.' //@translate
+            );
+            return;
+        }
+
+        if ((int) shell_exec('hash pdftohtml 2>&- || echo 1')) {
+            $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
+            $this->logger->err(
+                'The command-line utility pdftohtml is not available. Install the package poppler-utils.' //@translate
+            );
+            return;
+        }
+
         if (!$this->checkDestinationDir($this->basePath . '/temp')) {
             $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
             $this->logger->err(
