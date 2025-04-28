@@ -278,7 +278,27 @@ class ExtractOcr extends AbstractJob
 
         /** @var \Doctrine\DBAL\Connection $connection */
         $connection = $services->get('Omeka\Connection');
-        $sql = 'SELECT id FROM `media` WHERE `media_type`IN (:media_type) AND `extension`= :extension';
+        /*
+        $sql = <<<'SQL'
+            SELECT id
+            FROM `media`
+            WHERE `media_type`IN (:media_type)
+                AND `extension`= :extension
+            GROUP BY item_id
+            SQL;
+        */
+        // Process only the first pdf of each item.
+        $sql = <<<'SQL'
+            SELECT `id`
+            FROM `media`
+            WHERE `position` = (
+                SELECT MIN(`position`)
+                FROM `media` AS sub
+                WHERE `sub`.`item_id` = `media`.`item_id`
+                    AND `media_type`IN (:media_type)
+                    AND `extension`= :extension
+            )
+            SQL;
         $bind = [
             'media_type' => ['application/pdf', 'text/pdf'],
             'extension' => 'pdf',
@@ -293,7 +313,10 @@ class ExtractOcr extends AbstractJob
                 $sql .= ' AND ((' . implode(') OR (', $range) . '))';
             }
         }
-        $sql .= ' ORDER BY `item_id` ASC';
+        $sql .= <<<'SQL'
+            GROUP BY `item_id`, `position`, `id`
+            ORDER BY `item_id` ASC;
+            SQL;
         $pdfMediaIds = $connection->executeQuery($sql, $bind, $types)->fetchFirstColumn();
         $totalToProcess = count($pdfMediaIds);
 
