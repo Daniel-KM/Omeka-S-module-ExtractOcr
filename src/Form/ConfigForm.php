@@ -72,8 +72,8 @@ class ConfigForm extends Form
                 'name' => 'extractocr_content_property',
                 'type' => PropertySelect::class,
                 'options' => [
-                    'label' => 'Property to save pdf raw text', // @translate
-                    'info' => 'To save content makes it searchable anywhere. It is recommended to use "bibo:content". Note that it will increase the noise in the results, unless you use a search engine.', // @translate
+                    'label' => 'Property to save pdf raw text (not recommended)', // @translate
+                    'info' => 'To save content makes it searchable anywhere. It is recommended to use "bibo:content". Note that it will increase the noise in the results, unless you use a search engine. Furthermore, this option is not recommended when the text is too much big.', // @translate
                     'empty_option' => '',
                     'term_as_value' => true,
                 ],

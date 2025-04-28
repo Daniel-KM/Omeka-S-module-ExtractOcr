@@ -25,7 +25,7 @@ return [
             'extractocr_types_files' => [],
             'extractocr_types_media' => [],
             'extractocr_content_store' => [],
-            'extractocr_content_property' => 'bibo:content',
+            'extractocr_content_property' => null,
             'extractocr_content_language' => '',
             // Create an empty file when a page does not have text.
             'extractocr_create_empty_file' => false,
