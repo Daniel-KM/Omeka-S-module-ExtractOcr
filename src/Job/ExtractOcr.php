@@ -134,16 +134,19 @@ class ExtractOcr extends AbstractJob
 
         if (!$this->baseUri) {
             $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
-            $this->logger->err(new Message(
+            $this->logger->err(
                 'The base uri is unknown.' // @translate
-            ));
+            );
             return;
         }
 
+        // Clean and reorder media types to extract tsv, then pdf2xml then alto
+        // to simplify storage of text as value.
+        // Indeed, the text is not extracted directly for format alto.
         $formats = [
-            self::FORMAT_ALTO => 'alto',
-            self::FORMAT_PDF2XML => 'pdf2xml',
             self::FORMAT_TSV => 'tsv',
+            self::FORMAT_PDF2XML => 'pdf2xml',
+            self::FORMAT_ALTO => 'alto',
         ];
         $dirPaths = [
             self::FORMAT_ALTO => 'alto',
@@ -158,14 +161,15 @@ class ExtractOcr extends AbstractJob
 
         $settings = $services->get('Omeka\Settings');
 
+        // Prepare and reorder types.
         $targetTypesFiles = $settings->get('extractocr_types_files') ?: [];
-        $targetTypesFiles = array_values(array_intersect($targetTypesFiles, array_flip($extensions)));
+        $targetTypesFiles = array_values(array_intersect(array_keys($formats), $targetTypesFiles));
         $targetTypesMedia = $settings->get('extractocr_types_media') ?: [];
-        $targetTypesMedia = array_values(array_intersect($targetTypesMedia, array_flip($extensions)));
-        if (!$targetTypesFiles && !$targetTypesMedia) {
-            $this->logger->warn(new Message(
+        $targetTypesMedia = array_values(array_intersect(array_keys($formats), $targetTypesMedia));
+        if (!count($targetTypesFiles) && !count($targetTypesMedia)) {
+            $this->logger->warn(
                 'No extract format to process.' // @translate
-            ));
+            );
             return;
         }
 
@@ -173,28 +177,19 @@ class ExtractOcr extends AbstractJob
             && !class_exists('XSLTProcessor')
         ) {
             $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
-            $this->logger->err(new Message(
+            $this->logger->err(
                 'The php extension "xml" or "xsl" is required to extract text as xml alto.' // @translate
-            ));
+            );
             return;
         }
 
-        if (in_array(self::FORMAT_TSV, $targetTypesFiles)
-            && !$this->checkDestinationDir($this->basePath . '/iiif-search')
-        ) {
-            $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
-            return;
+        foreach ($targetTypesFiles as $format) {
+            if (!$this->checkDestinationDir($this->basePath . '/' . $dirPaths[$format])) {
+               $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
+            }
         }
-        if (in_array(self::FORMAT_ALTO, $targetTypesFiles)
-            && !$this->checkDestinationDir($this->basePath . '/alto')
-        ) {
-            $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
-            return;
-        }
-        if (in_array(self::FORMAT_PDF2XML, $targetTypesFiles)
-            && !$this->checkDestinationDir($this->basePath . '/pdf2xml')
-        ) {
-            $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
+        if ($this->job->getStatus() === \Omeka\Entity\Job::STATUS_ERROR) {
+            $this->logger->err('The directory is not writeable.'); // @translate
             return;
         }
 
@@ -221,9 +216,9 @@ class ExtractOcr extends AbstractJob
                 }
             }
             if (!$this->property) {
-                $this->logger->warn(new Message(
+                $this->logger->warn(
                     'The option to store text is set, but no property is defined.' // @translate
-                ));
+                );
             }
         }
 
@@ -293,43 +288,38 @@ class ExtractOcr extends AbstractJob
             return;
         }
 
-        $message = new Message(sprintf(
-            'Formats of xml files to create: %s.', // @translate,
-            implode(', ', array_keys(array_intersect_key($formats, array_flip($targetTypesMedia))))
-        ));
+        if (count($targetTypesMedia)) {
+            $this->logger->info(new Message(
+                'Formats of xml files to create: %s.', // @translate,
+                implode(', ', array_intersect_key($formats), array_flip($targetTypesMedia))
+           ));
+        }
 
         if ($mode === 'existing') {
-            $message = new Message(
+            $this->logger->info(new Message(
                 'Creating Extract OCR files for %d PDF only if they already exist.', // @translate
                 $totalToProcess
-            );
+            ));
         } elseif ($mode === 'missing') {
-            $message = new Message(
+            $this->logger->info(new Message(
                 'Creating Extract OCR files for %d PDF, only if they do not exist yet.', // @translate
                 $totalToProcess
-            );
+            ));
         } elseif ($mode === 'all') {
-            $message = new Message(
+            $this->logger->info(new Message(
                 'Creating Extract OCR files for %d PDF, xml files will be overridden or created.', // @translate
                 $totalToProcess
-            );
+            ));
         } else {
             $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
-            $message = new Message(
+            $this->logger->err(new Message(
                 'Mode of extraction "%s" is not managed.', // @translate
                 $mode
-            );
-            $this->logger->err($message);
+            ));
             return;
         }
-        $this->logger->info($message);
 
-        // Clean and reorder media types to extract tsv, then pdf2xml then alto
-        // to simplify storage of text as value.
-        // Indeed, the text is not extracted directly for format alto.
-        $targetTypesMedia = array_values(array_intersect([self::FORMAT_TSV, self::FORMAT_PDF2XML, self::FORMAT_ALTO], $targetTypesMedia));
-
-        // TODO Currently, the process create the files via a loop by media types. Restructure it to do it one time by item.
+        // TODO Currently, the process create the files via a loop by media type. Restructure it to do it one time by item.
 
         // Create a single table to process a single loop.
         // Most of the time, there are one or two formats.
@@ -526,12 +516,12 @@ class ExtractOcr extends AbstractJob
                     $hasOcrFile = $this->storeFileLocally($tempFile, $localSearchFilepath);
                     if ($hasOcrFile) {
                         $this->logger->info(new Message(
-                            'IIIF Search file created for item #%1$d created for %2$s file.', // @translate
+                            'IIIF Search file for item #%1$d created for format %2$s.', // @translate
                             $item->id(), $this->targetExtension
                         ));
                     } else {
                         $this->logger->err(new Message(
-                            'Unable to store the IIIF Search file for item #%1$d created for %2$s file.', // @translate
+                            'Unable to store the IIIF Search file for item #%1$d for format %2$s.', // @translate
                             $item->id(), $this->targetExtension
                         ));
                     }
@@ -561,41 +551,37 @@ class ExtractOcr extends AbstractJob
         }
 
         if ($this->stats['no_pdf']) {
-            $message = new Message(sprintf(
+            $this->logger->notice(new Message(
                 'These medias have no pdf file: #%s', // @translate
                 implode(', #', $this->stats['no_pdf'])
             ));
-            $this->logger->notice($message);
         }
 
         if ($this->stats['no_text_layer']) {
-            $message = new Message(sprintf(
+            $this->logger->notice(new Message(
                 'These pdf files have no text layer: #%s', // @translate
                 implode(', #', $this->stats['no_text_layer'])
             ));
-            $this->logger->notice($message);
         }
 
         if ($this->stats['issue']) {
-            $message = new Message(sprintf(
+            $this->logger->notice(new Message(
                 'These pdf files have issues when extracting content: #%s', // @translate
                 implode(', #', $this->stats['issue'])
             ));
-            $this->logger->notice($message);
         }
 
         if ($mode === 'all') {
-            $message = new Message(
+            $this->logger->notice(new Message(
                 'Processed %1$d/%2$d pdf files, %3$d files %4$s created, %5$d failed (%6$d without file, %7$d without text layer, %8$d with issue).', // @translate
                 $countPdf, $totalToProcess, $countProcessed, $this->targetExtension, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']), count($this->stats['issue'])
-            );
+            ));
         } else {
-            $message = new Message(
+            $this->logger->notice(new Message(
                 'Processed %1$d/%2$d pdf files, %3$d skipped, %4$d files %5$s, created, %6$d failed (%7$d without file, %8$d without text layer, %9$d with issue).', // @translate
                 $countPdf, $totalToProcess, $countSkipped, $countProcessed, $this->targetExtension, $countFailed, count($this->stats['no_pdf']), count($this->stats['no_text_layer']), count($this->stats['issue'])
-            );
+            ));
         }
-        $this->logger->notice($message);
     }
 
     /**
@@ -655,6 +641,7 @@ class ExtractOcr extends AbstractJob
         // Do the conversion of the pdf to xml.
         $forceXmlForTsv = $forceXml && $this->targetMediaType === self::FORMAT_TSV;
         $tempFile = $forceXmlForTsv
+            // The temp file is a pdf2xml file, with simple extension "xml".
             ? $this->extractPdfToTempFile($pdfFilepath, $pdfMedia->item(), 'xml', self::FORMAT_PDF2XML)
             : $this->extractPdfToTempFile($pdfFilepath, $pdfMedia->item(), $this->targetExtension, $this->targetMediaType);
 
@@ -937,6 +924,7 @@ class ExtractOcr extends AbstractJob
         );
 
         if ($xml === false) {
+            $tempFile->delete();
             return false;
         }
 
@@ -959,7 +947,7 @@ class ExtractOcr extends AbstractJob
 
             foreach ($xmlPage->word ?? [] as $xmlword) {
                 $word = (string) $xmlword;
-                $word = $this->slugify($word);
+                $word = $this->normalize($word);
                 if (!strlen($word)) {
                     continue;
                 }
@@ -979,24 +967,29 @@ class ExtractOcr extends AbstractJob
                 $width = round($xMax - $xMin);
                 $height = round($yMax - $yMin);
 
+                $xywh = round((float) $xMin) . ',' . round((float) $yMin) . ',' . $width . ',' . $height;
+
+                $word = mb_strtolower($word, 'UTF-8');
                 if (isset($resultTsv[$word])) {
-                    $resultTsv[$word][1] .= ';' . $indexXmlPage . ':' . round((float) $xMin) . ',' . round((float) $yMin) . ',' . $width . ',' . $height;
+                    $resultTsv[$word][1] .= ';' . $indexXmlPage . ':' . $xywh;
                 } else {
-                    $resultTsv[$word][0] = $word;
-                    $resultTsv[$word][1] = $indexXmlPage . ':' . round((float) $xMin) . ',' . round((float) $yMin) . ',' . $width . ',' . $height;
+                    $resultTsv[$word] = [$word, $indexXmlPage . ':' . $xywh];
                 }
             }
         }
 
         if (!$resultTsv && !$this->createEmptyFile) {
+            $tempFile->delete();
             return true;
         }
 
         $fp = fopen($tsvFilepath, 'w');
-        foreach ($resultTsv as $fields) {
-            fputcsv($fp, $fields, "\t", chr(0), chr(0));
+        foreach ($resultTsv as $row) {
+            fputcsv($fp, $row, "\t", chr(0), chr(0));
         }
+
         $tempFile->delete();
+
         return fclose($fp);
     }
 
@@ -1285,24 +1278,25 @@ class ExtractOcr extends AbstractJob
     }
 
     /**
-     * Transform the given string into a valid URL slug
+     * Normalize a string as utf8.
+     *
+     * @todo Check if it is working for non-latin languages.
+     * Should be the same normalization in IiifSearch and ExtractOcr.
      *
      * @param string $input
      * @return string
      */
-    protected function slugify($input): string
+    protected function normalize($input): string
     {
         if (extension_loaded('intl')) {
             $transliterator = \Transliterator::createFromRules(':: NFD; :: [:Nonspacing Mark:] Remove; :: NFC;');
-            $slug = $transliterator->transliterate($input);
+            $string = $transliterator->transliterate((string) $input);
         } elseif (extension_loaded('iconv')) {
-            $slug = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $input);
+            $string = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', (string) $input);
         } else {
-            $slug = $input;
+            $string = $input;
         }
-        $slug = mb_strtolower($slug, 'UTF-8');
-
-        return $slug;
+        return (string) $string;
     }
 
     protected function listMediaImagesData(ItemRepresentation $item): array

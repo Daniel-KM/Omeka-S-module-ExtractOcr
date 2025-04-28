@@ -114,6 +114,7 @@ class Module extends AbstractModule
 
         $plugins = $services->get('ControllerPluginManager');
         $settings = $services->get('Omeka\Settings');
+        $translator = $services->get('MvcTranslator');
         $messenger = $plugins->get('messenger');
 
         if (version_compare((string) $oldVersion, '3.4.5', '<')) {
@@ -131,14 +132,12 @@ class Module extends AbstractModule
         }
 
         if (version_compare((string) $oldVersion, '3.4.7', '<')) {
-            $this->setServiceLocator($services);
-            $t = $services->get('MvcTranslator');
             $config = $services->get('Config');
             $basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
 
             if (!$this->checkDestinationDir($basePath . '/temp')) {
                 $message = new Message(
-                    $t->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
+                    $translator->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
                     $basePath . '/temp'
                 );
                 throw new ModuleCannotInstallException($message);
@@ -146,7 +145,7 @@ class Module extends AbstractModule
 
             if (!$this->checkDestinationDir($basePath . '/iiif-search')) {
                 $message = new Message(
-                    $t->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
+                    $translator->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
                     $basePath . '/iiif-search'
                 );
                 throw new ModuleCannotInstallException($message);
@@ -154,7 +153,7 @@ class Module extends AbstractModule
 
             if (!$this->checkDestinationDir($basePath . '/alto')) {
                 $message = new Message(
-                    $t->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
+                    $translator->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
                     $basePath . '/alto'
                 );
                 throw new ModuleCannotInstallException($message);
@@ -162,7 +161,7 @@ class Module extends AbstractModule
 
             if (!$this->checkDestinationDir($basePath . '/pdf2xml')) {
                 $message = new Message(
-                    $t->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
+                    $translator->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
                     $basePath . '/pdf2xml'
                 );
                 throw new ModuleCannotInstallException($message);
