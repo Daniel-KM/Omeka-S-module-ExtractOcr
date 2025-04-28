@@ -155,7 +155,7 @@ class ExtractOcr extends AbstractJob
         ];
         $extensions = [
             self::FORMAT_ALTO => 'alto.xml',
-            self::FORMAT_PDF2XML => 'xml',
+            self::FORMAT_PDF2XML => 'pdf2xml.xml',
             self::FORMAT_TSV => 'tsv',
         ];
 
@@ -379,7 +379,7 @@ class ExtractOcr extends AbstractJob
 
         $suffixFilenames = [
             self::FORMAT_ALTO=> '.alto',
-            self::FORMAT_PDF2XML => '',
+            self::FORMAT_PDF2XML => '.pdf2xml',
             self::FORMAT_TSV => '',
         ];
         $shortExtensions = [
@@ -641,8 +641,8 @@ class ExtractOcr extends AbstractJob
         // Do the conversion of the pdf to xml.
         $forceXmlForTsv = $forceXml && $this->targetMediaType === self::FORMAT_TSV;
         $tempFile = $forceXmlForTsv
-            // The temp file is a pdf2xml file, with simple extension "xml".
-            ? $this->extractPdfToTempFile($pdfFilepath, $pdfMedia->item(), 'xml', self::FORMAT_PDF2XML)
+            // The temp file is a pdf2xml file, with extension ".pdf2xml.xml".
+            ? $this->extractPdfToTempFile($pdfFilepath, $pdfMedia->item(), 'pdf2xml.xml', self::FORMAT_PDF2XML)
             : $this->extractPdfToTempFile($pdfFilepath, $pdfMedia->item(), $this->targetExtension, $this->targetMediaType);
 
         if (empty($tempFile)) {
@@ -890,9 +890,9 @@ class ExtractOcr extends AbstractJob
     {
         $listMediaImages = $this->listMediaImagesData($item);
 
-        // Create temp file.
+        // Create temp file that will be removed at the end of the method.
         $tempFile = $this->tempFileFactory->build();
-        $xmlFilepath = $tempFile->getTempPath() . '.xml';
+        $xmlFilepath = $tempFile->getTempPath() . 'pdf2xml.xml';
         @unlink($tempFile->getTempPath());
         $tempFile->setTempPath($xmlFilepath);
         $tempPath = $tempFile->getTempPath();
@@ -1161,7 +1161,7 @@ class ExtractOcr extends AbstractJob
         $source = $tempFile->getTempPath();
 
         // Find a unique meaningful filename instead of a hash.
-        $name = date('Ymd_His') . '_pdf2xml';
+        $name = date('Ymd_His');
         $i = 0;
         do {
             $filename = $name . ($i ? '-' . $i : '') . '.' . $this->targetExtension;
