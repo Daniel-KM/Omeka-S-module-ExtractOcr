@@ -19,6 +19,7 @@ class ExtractOcr extends AbstractJob
     const FORMAT_ALTO = 'application/alto+xml';
     const FORMAT_PDF2XML = 'application/vnd.pdf2xml+xml';
     const FORMAT_TSV = 'text/tab-separated-values';
+    const FORMAT_TSV_BY_WORD = 'text/tab-separated-values;by-word';
 
     /**
      * @var \Omeka\Api\Manager
@@ -88,6 +89,11 @@ class ExtractOcr extends AbstractJob
     /**
      * @var string
      */
+    protected $targetFormat;
+
+    /**
+     * @var string
+     */
     protected $targetMediaType;
 
     /**
@@ -145,6 +151,7 @@ class ExtractOcr extends AbstractJob
         // Indeed, the text is not extracted directly for format alto.
         $formats = [
             self::FORMAT_TSV => 'tsv',
+            self::FORMAT_TSV_BY_WORD => 'tsv by word',
             self::FORMAT_PDF2XML => 'pdf2xml',
             self::FORMAT_ALTO => 'alto',
         ];
@@ -152,11 +159,19 @@ class ExtractOcr extends AbstractJob
             self::FORMAT_ALTO => 'alto',
             self::FORMAT_PDF2XML => 'pdf2xml',
             self::FORMAT_TSV => 'iiif-search',
+            self::FORMAT_TSV_BY_WORD => 'iiif-search',
         ];
         $extensions = [
             self::FORMAT_ALTO => 'alto.xml',
             self::FORMAT_PDF2XML => 'pdf2xml.xml',
-            self::FORMAT_TSV => 'tsv',
+            self::FORMAT_TSV => 'full.tsv',
+            self::FORMAT_TSV_BY_WORD => 'by-word.tsv',
+        ];
+        $mediaTypes = [
+            self::FORMAT_ALTO => 'application/alto+xml',
+            self::FORMAT_PDF2XML => 'application/vnd.pdf2xml+xml',
+            self::FORMAT_TSV => 'text/tab-separated-values',
+            self::FORMAT_TSV_BY_WORD => 'text/tab-separated-values',
         ];
 
         $settings = $services->get('Omeka\Settings');
@@ -325,20 +340,21 @@ class ExtractOcr extends AbstractJob
         // Most of the time, there are one or two formats.
         $create = [];
         foreach ($targetTypesFiles as $targetType) {
-            $create[] = ['create_media' => false, 'media_type' => $targetType];
+            $create[] = ['format' => $targetType, 'create_media' => false];
         }
         foreach ($targetTypesMedia as $targetType) {
-            $create[] = ['create_media' => true, 'media_type' => $targetType];
+            $create[] = ['format' => $targetType, 'create_media' => true];
         }
         foreach ($create as $key => $targetData) {
             $this->createMedia = $targetData['create_media'];
-            $this->targetMediaType = $targetData['media_type'];
-            $this->targetDirPath = $dirPaths[$this->targetMediaType];
-            $this->targetExtension = $extensions[$this->targetMediaType];
+            $this->targetFormat = $targetData['format'];
+            $this->targetDirPath = $dirPaths[$this->targetFormat];
+            $this->targetExtension = $extensions[$this->targetFormat];
+            $this->targetMediaType = $mediaTypes[$this->targetFormat];
             if (count($targetTypesMedia) > 1) {
                 $this->logger->notice(new Message(
                     'Processing format %1$d/%2$d: %3$s (%4$s).', // @translate
-                    $key + 1, count($targetTypesMedia), $formats[$this->targetMediaType], $this->targetMediaType
+                    $key + 1, count($targetTypesMedia), $formats[$this->targetFormat], $this->targetMediaType
                 ));
             }
             if ($key > 0) {
@@ -380,12 +396,14 @@ class ExtractOcr extends AbstractJob
         $suffixFilenames = [
             self::FORMAT_ALTO=> '.alto',
             self::FORMAT_PDF2XML => '.pdf2xml',
-            self::FORMAT_TSV => '',
+            self::FORMAT_TSV => '.full',
+            self::FORMAT_TSV_BY_WORD => '.by-word',
         ];
         $shortExtensions = [
             self::FORMAT_ALTO => 'xml',
             self::FORMAT_PDF2XML => 'xml',
             self::FORMAT_TSV => 'tsv',
+            self::FORMAT_TSV_BY_WORD => 'tsv',
         ];
 
         foreach ($pdfMediaIds as $pdfMediaId) {
@@ -426,8 +444,8 @@ class ExtractOcr extends AbstractJob
             // For security and to avoid to remove native xml, in particular
             // alto, append the item id for the base of the derivative file.
             $targetFilenameNoExtension = basename($pdfMedia->source(), '.pdf') . '.' . $item->id();
-            $shortExtension = $shortExtensions[$this->targetMediaType];
-            $targetFilename = $targetFilenameNoExtension . $suffixFilenames[$this->targetMediaType] . '.' . $shortExtension;
+            $shortExtension = $shortExtensions[$this->targetFormat];
+            $targetFilename = $targetFilenameNoExtension . $suffixFilenames[$this->targetFormat] . '.' . $shortExtension;
             $searchExistingOcrMedia = $this->getMediaFromFilename($item->id(), $targetFilename, $shortExtension, $this->targetMediaType);
 
             $localSearchFilepath = $this->basePath . '/' . $this->targetDirPath . '/' . $item->id() . '.' . $this->targetExtension;
@@ -494,7 +512,7 @@ class ExtractOcr extends AbstractJob
                 $textContent = $this->extractTextContent($pdfMedia, $tempFile);
                 if ($this->createMedia) {
                     // Do not create is only for media.
-                    $doNotCreate = $this->targetMediaType !== self::FORMAT_TSV
+                    $doNotCreate = !in_array($this->targetFormat, [self::FORMAT_TSV, self::FORMAT_TSV_BY_WORD])
                         && !$this->createEmptyFile
                         && !strlen($textContent);
                     if ($doNotCreate) {
@@ -639,11 +657,12 @@ class ExtractOcr extends AbstractJob
         ];
 
         // Do the conversion of the pdf to xml.
-        $forceXmlForTsv = $forceXml && $this->targetMediaType === self::FORMAT_TSV;
+        $forceXmlForTsv = $forceXml
+            && in_array($this->targetFormat, [self::FORMAT_TSV, self::FORMAT_TSV_BY_WORD]);
         $tempFile = $forceXmlForTsv
             // The temp file is a pdf2xml file, with extension ".pdf2xml.xml".
             ? $this->extractPdfToTempFile($pdfFilepath, $pdfMedia->item(), 'pdf2xml.xml', self::FORMAT_PDF2XML)
-            : $this->extractPdfToTempFile($pdfFilepath, $pdfMedia->item(), $this->targetExtension, $this->targetMediaType);
+            : $this->extractPdfToTempFile($pdfFilepath, $pdfMedia->item(), $this->targetExtension, $this->targetFormat);
 
         if (empty($tempFile)) {
             $this->stats['issue'][] = $pdfMedia->id();
@@ -670,7 +689,7 @@ class ExtractOcr extends AbstractJob
     protected function extractTextContent(MediaRepresentation $pdfMedia, ?TempFile $tempFile = null): ?string
     {
         // For tsv, reextract text from source.
-        $isTsv = $this->targetMediaType === self::FORMAT_TSV;
+        $isTsv = in_array($this->targetFormat, [self::FORMAT_TSV, self::FORMAT_TSV_BY_WORD]);
         if ($isTsv || !$tempFile) {
             $tempFile = $this->extractOcrFromPdfMediaToTempFile($pdfMedia, true);
         }
@@ -685,7 +704,7 @@ class ExtractOcr extends AbstractJob
         // The content can be reextracted through pdftotext, that may return a
         // different layout with options -layout or -raw.
         // Here, the text is extracted from the extracted pdf2xml.
-        if ($this->targetMediaType === self::FORMAT_ALTO) {
+        if ($this->targetFormat === self::FORMAT_ALTO) {
             $textContent = $this->extractTextFromAlto($xmlContent);
         } else {
             // Add a space between words.
@@ -799,7 +818,7 @@ class ExtractOcr extends AbstractJob
         string $pdfFilepath,
         ItemRepresentation $item,
         string $extension,
-        string $mediaType
+        string $format
     ): ?TempFile {
         $tempFile = $this->tempFileFactory->build();
 
@@ -808,8 +827,8 @@ class ExtractOcr extends AbstractJob
         $tempFile->setTempPath($tempFilepath);
         $tempPath = $tempFile->getTempPath();
 
-        if ($mediaType === self::FORMAT_TSV) {
-            $result = $this->extractTextToTsv($pdfFilepath, $tempFilepath, $item);
+        if (in_array($format, [self::FORMAT_TSV, self::FORMAT_TSV_BY_WORD])) {
+            $result = $this->extractTextToTsv($pdfFilepath, $tempFilepath, $item, $format);
             if (!$result) {
                 if ($tempPath && file_exists($tempPath)) {
                     $tempFile->delete();
@@ -857,7 +876,7 @@ class ExtractOcr extends AbstractJob
 
         $simpleXml->saveXML($tempFilepath);
 
-        if ($mediaType === self::FORMAT_ALTO) {
+        if ($format === self::FORMAT_ALTO) {
             /** @see https://gitlab.freedesktop.org/poppler/poppler/-/raw/master/utils/pdf2xml.dtd pdf2xml */
             $modulePath = dirname(__DIR__, 2);
             $xsltPath = $modulePath . '/data/xsl/pdf2xml_to_alto.xsl';
@@ -886,7 +905,7 @@ class ExtractOcr extends AbstractJob
         return $tempFile;
     }
 
-    protected function extractTextToTsv($pdfFilepath, $tsvFilepath, ItemRepresentation $item) : bool
+    protected function extractTextToTsv($pdfFilepath, $tsvFilepath, ItemRepresentation $item, $format) : bool
     {
         $listMediaImages = $this->listMediaImagesData($item);
 
@@ -928,8 +947,16 @@ class ExtractOcr extends AbstractJob
             return false;
         }
 
+        $hasRow = false;
         $resultTsv = [];
         $indexXmlPage = 0;
+
+        $isFullTsv = $format === self::FORMAT_TSV;
+
+        // For full tsv, save each row one by one.
+        if ($isFullTsv) {
+            $fp = fopen($tsvFilepath, 'w');
+        }
 
         foreach ($xml->body->doc->page ?? [] as $xmlPage) {
             ++$indexXmlPage;
@@ -969,13 +996,29 @@ class ExtractOcr extends AbstractJob
 
                 $xywh = round((float) $xMin) . ',' . round((float) $yMin) . ',' . $width . ',' . $height;
 
-                $word = mb_strtolower($word, 'UTF-8');
-                if (isset($resultTsv[$word])) {
-                    $resultTsv[$word][1] .= ';' . $indexXmlPage . ':' . $xywh;
+                if ($isFullTsv) {
+                    $row = [$word, $indexXmlPage, $xywh];
+                    fputcsv($fp, $row, "\t", chr(0), chr(0));
+                    $hasRow = true;
                 } else {
-                    $resultTsv[$word] = [$word, $indexXmlPage . ':' . $xywh];
+                    $word = mb_strtolower($word, 'UTF-8');
+                    if (isset($resultTsv[$word])) {
+                        $resultTsv[$word][1] .= ';' . $indexXmlPage . ':' . $xywh;
+                    } else {
+                        $resultTsv[$word] = [$word, $indexXmlPage . ':' . $xywh];
+                    }
                 }
             }
+        }
+
+        if ($isFullTsv) {
+            $result = fclose($fp);
+            $tempFile->delete();
+            if (!$hasRow && !$this->createEmptyFile) {
+                @unlink($tsvFilepath);
+                return true;
+            }
+            return $result;
         }
 
         if (!$resultTsv && !$this->createEmptyFile) {

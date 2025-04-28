@@ -22,10 +22,13 @@ class ConfigForm extends Form
                 'type' => Element\MultiCheckbox::class,
                 'options' => [
                     'label' => 'Create file for formats', // @translate
+                    'info' => 'For more info on formats, see readme.', // @translate
+                    'documentation' => 'https://gitlab.com/Daniel-KM/Omeka-S-module-ExtractOcr#extract-ocr-modue-for-omeka-s',
                     'value_options' => [
-                        'text/tab-separated-values' => 'tsv (quick search in with module iiif search)',
-                        'application/alto+xml' => 'alto (ocr transcription for iiif server)',
-                        'application/vnd.pdf2xml+xml' => 'pdf2xml',
+                        'text/tab-separated-values' => 'tsv with original order of words (quick and exact search for iiif search)', // @translate
+                        'text/tab-separated-values;by-word' => 'tsv grouped by word (very quick search for iiif search, small index)', // @translate
+                        'application/alto+xml' => 'xml alto (slow search, ocr transcription for iiif server)', // @translate
+                        'application/vnd.pdf2xml+xml' => 'pdf2xml', // @translate
                     ],
                 ],
                 'attributes' => [
@@ -38,9 +41,10 @@ class ConfigForm extends Form
                 'options' => [
                     'label' => 'Create media for formats', // @translate
                     'value_options' => [
-                        'text/tab-separated-values' => 'tsv (quick search in with module iiif search)',
-                        'application/alto+xml' => 'alto (ocr transcription for iiif server)',
-                        'application/vnd.pdf2xml+xml' => 'pdf2xml',
+                        'text/tab-separated-values' => 'tsv with original order of words', // @translate
+                        'text/tab-separated-values;by-word' => 'tsv grouped by word', // @translate
+                        'application/alto+xml' => 'xml alto', // @translate
+                        'application/vnd.pdf2xml+xml' => 'pdf2xml', // @translate
                     ],
                 ],
                 'attributes' => [
