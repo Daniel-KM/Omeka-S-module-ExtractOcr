@@ -345,7 +345,7 @@ class ExtractOcr extends AbstractJob
         if (count($targetTypesMedia)) {
             $this->logger->info(new Message(
                 'Formats of xml files to create: %s.', // @translate,
-                implode(', ', array_intersect_key($formats), array_flip($targetTypesMedia))
+                implode(', ', array_intersect_key($formats, array_flip($targetTypesMedia)))
            ));
         }
 
