@@ -1324,7 +1324,7 @@ class ExtractOcr extends AbstractJob
                 $from = strlen($from) ? (int) $from : null;
                 $to = strlen($to) ? (int) $to : null;
                 if ($from && $to) {
-                    $conditions[] = "`$column` >= $from AND `$column` <= $to)";
+                    $conditions[] = "`$column` >= $from AND `$column` <= $to";
                 } elseif ($from) {
                     $conditions[] = "`$column` >= $from";
                 } elseif ($to) {
