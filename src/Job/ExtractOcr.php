@@ -32,6 +32,11 @@ class ExtractOcr extends AbstractJob
     protected $cli;
 
     /**
+     * @var \Doctrine\ORM\EntityManager
+     */
+    protected $entityManager;
+
+    /**
      * @var \IiifSearch\View\Helper\FixUtf8|null
      */
     protected $fixUtf8;
@@ -77,9 +82,14 @@ class ExtractOcr extends AbstractJob
     protected $language;
 
     /**
-     * @var \Omeka\Api\Representation\PropertyRepresentation|null
+     * @var int|null
      */
-    protected $property;
+    protected $propertyId;
+
+    /**
+     * @var string|null
+     */
+    protected $propertyTerm;
 
     /**
      * @var string
@@ -137,6 +147,7 @@ class ExtractOcr extends AbstractJob
         $this->logger = $services->get('Omeka\Logger');
         $this->tempFileFactory = $services->get('Omeka\File\TempFileFactory');
         $this->cli = $services->get('Omeka\Cli');
+        $this->entityManager = $services->get('Omeka\EntityManager');
         $this->baseUri = $this->getArg('base_uri');
         $this->basePath = $services->get('Config')['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
 
@@ -249,16 +260,18 @@ class ExtractOcr extends AbstractJob
         if ($contentStore) {
             $prop = $settings->get('extractocr_content_property');
             if ($prop) {
-                $prop = $this->api->search('properties', ['term' => $prop])->getContent();
-                if ($prop) {
-                    $this->property = reset($prop);
+                /** @var \Common\Stdlib\EasyMeta $easyMeta */
+                $easyMeta = $services->get('Common\EasyMeta');
+                $this->propertyId = $easyMeta->propertyId($prop);
+                if ($this->propertyId) {
+                    $this->propertyTerm = $prop;
                     $this->language = $settings->get('extractocr_content_language');
                     $this->store['item'] = in_array('item', $contentStore) && !$this->getArg('manual');
                     $this->store['media_pdf'] = in_array('media_pdf', $contentStore);
                     $this->store['media_extracted'] = in_array('media_extracted', $contentStore);
                 }
             }
-            if (!$this->property) {
+            if (!$this->propertyId) {
                 $this->logger->warn(
                     'The option to store text is set, but no property is defined.' // @translate
                 );
@@ -419,7 +432,8 @@ class ExtractOcr extends AbstractJob
                     'media_pdf' => false,
                     'media_extracted' => false,
                 ];
-                $this->property = null;
+                $this->propertyId = null;
+                $this->propertyTerm = null;
             }
             $this->process($pdfMediaIds, $mode, $totalToProcess);
             if ($this->shouldStop()) {
@@ -626,6 +640,10 @@ class ExtractOcr extends AbstractJob
             unset($pdfMedia);
             unset($ocrMedia);
             unset($item);
+
+            // Clear the Doctrine identity map to prevent memory growth
+            // on large batches. Property scalars are cached above.
+            $this->entityManager->clear();
         }
 
         if ($this->stats['no_pdf']) {
@@ -845,10 +863,10 @@ class ExtractOcr extends AbstractJob
             'values_json' => '{}',
         ];
 
-        if ($this->property && strlen((string) $textContent) && $this->store['media_extracted']) {
-            $data[$this->property->term()][] = [
+        if ($this->propertyId && strlen((string) $textContent) && $this->store['media_extracted']) {
+            $data[$this->propertyTerm][] = [
                 'type' => 'literal',
-                'property_id' => $this->property->id(),
+                'property_id' => $this->propertyId,
                 '@value' => $textContent ,
                 '@language' => $this->language,
             ];
@@ -1197,12 +1215,12 @@ class ExtractOcr extends AbstractJob
 
         $contentValue = [
             'type' => 'literal',
-            'property_id' => $this->property->id(),
+            'property_id' => $this->propertyId,
             '@value' => $textContent ,
             '@language' => $this->language,
         ];
 
-        $existingValues = $resource->value($this->property->term(), ['all' => true]);
+        $existingValues = $resource->value($this->propertyTerm, ['all' => true]);
         foreach ($existingValues as $v) {
             if ($v->value() === $contentValue['@value']) {
                 return;
@@ -1211,10 +1229,7 @@ class ExtractOcr extends AbstractJob
 
         // TODO Check it is working only with job, not the manual edition.
         // With append, there is no need to pass all property values.
-        // TODO Don't use json_decode(json_encode()).
-        // $resourceJson = json_decode(json_encode($resource), true);
-        // $resourceJson[$this->property->term()][] = $contentValue;
-        $resourceJson = [$this->property->term() => [$contentValue]];
+        $resourceJson = [$this->propertyTerm => [$contentValue]];
 
         $this->api->update(
             $resource->resourceName(),
@@ -1236,7 +1251,7 @@ class ExtractOcr extends AbstractJob
     {
         // Note: the position is not available in representation.
 
-        $entityManager = $this->getServiceLocator()->get('Omeka\EntityManager');
+        $entityManager = $this->entityManager;
         $mediaRepository = $entityManager->getRepository(\Omeka\Entity\Media::class);
         $medias = $mediaRepository->findBy(['item' => $media->item()->id()]);
         if (count($medias) <= 1) {
