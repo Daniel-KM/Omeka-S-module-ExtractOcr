@@ -264,12 +264,9 @@ class Module extends AbstractModule
             ),
             $job->getId(),
             '</a>',
-            sprintf(
-                '<a href="%s">',
-                class_exists('Log\Module', false)
-                    ? htmlspecialchars($controller->url()->fromRoute('admin/default', ['controller' => 'log'], ['query' => ['job_id' => $job->getId()]]))
-                    : htmlspecialchars($controller->url()->fromRoute('admin/id', ['controller' => 'job', 'id' => $job->getId(), 'action' => 'log']))
-            )
+            class_exists('Log\Module', false)
+                ? sprintf('<a href="%1$s">', $controller->url()->fromRoute('admin/default', ['controller' => 'log'], ['query' => ['job_id' => $job->getId()]]))
+                : sprintf('<a href="%1$s" target="_blank">', $controller->url()->fromRoute('admin/id', ['controller' => 'job', 'action' => 'log', 'id' => $job->getId()]))
         );
         $message->setEscapeHtml(false);
         $controller->messenger()->addSuccess($message);
@@ -292,6 +289,7 @@ class Module extends AbstractModule
             \ExtractOcr\Job\ExtractOcr::FORMAT_ALTO => 'alto.xml',
             \ExtractOcr\Job\ExtractOcr::FORMAT_PDF2XML => 'xml',
             \ExtractOcr\Job\ExtractOcr::FORMAT_TSV => 'tsv',
+            \ExtractOcr\Job\ExtractOcr::FORMAT_TSV_BY_WORD => 'tsv',
         ];
         $settings = $services->get('Omeka\Settings');
         $targetTypesFiles = $settings->get('extractocr_types_files') ?: [];
@@ -343,6 +341,7 @@ class Module extends AbstractModule
             'alto.xml' => 'alto',
             'pdf2xml' => 'pdf2xml',
             'tsv' => 'iiif-search',
+            'xml' => 'pdf2xml',
         ];
 
         // Don't override an already processed pdf when updating an item.
@@ -502,7 +501,7 @@ class Module extends AbstractModule
         if (!$result) {
             $this->getServiceLocator()->get('Omeka\Logger')->err(new Message(
                 'The directory "%1$s" is not writeable: %2$s.', // @translate
-                $dirPath, error_get_last()['message']
+                $dirPath, error_get_last()['message'] ?? 'unknown error'
             ));
             return null;
         }

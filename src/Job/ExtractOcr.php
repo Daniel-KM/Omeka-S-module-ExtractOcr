@@ -228,7 +228,7 @@ class ExtractOcr extends AbstractJob
         }
 
         if ((in_array(self::FORMAT_ALTO, $targetTypesFiles) || in_array(self::FORMAT_ALTO, $targetTypesMedia))
-            && !class_exists('XSLTProcessor')
+            && !class_exists('XSLTProcessor', false)
         ) {
             $this->job->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
             $this->logger->err(
@@ -1048,14 +1048,25 @@ class ExtractOcr extends AbstractJob
         // For full tsv, save each row one by one.
         if ($isFullTsv) {
             $fp = fopen($tsvFilepath, 'w');
+            if ($fp === false) {
+                $this->logger->err(new Message(
+                    'Unable to open file "%s" for writing.', // @translate
+                    $tsvFilepath
+                ));
+                $tempFile->delete();
+                return false;
+            }
         }
 
         foreach ($xml->body->doc->page ?? [] as $xmlPage) {
             ++$indexXmlPage;
 
             $pageAttribute = $xmlPage->attributes();
-            $pageWidth = $pageAttribute->width;
-            $pageHeigth = $pageAttribute->height;
+            $pageWidth = (float) $pageAttribute->width;
+            $pageHeigth = (float) $pageAttribute->height;
+            if (!$pageWidth || !$pageHeigth) {
+                continue;
+            }
 
             // There may be no media when there is only a single pdf without image.
             $mediaImage = $listMediaImages[$indexXmlPage - 1] ?? null;
@@ -1090,7 +1101,7 @@ class ExtractOcr extends AbstractJob
 
                 if ($isFullTsv) {
                     $row = [$word, $indexXmlPage, $xywh];
-                    fputcsv($fp, $row, "\t", chr(0), chr(0));
+                    fputcsv($fp, $row, "\t", "\0", "\0");
                     $hasRow = true;
                 } else {
                     $word = mb_strtolower($word, 'UTF-8');
@@ -1124,7 +1135,7 @@ class ExtractOcr extends AbstractJob
             return false;
         }
         foreach ($resultTsv as $word => $positions) {
-            fputcsv($fp, [$word, implode(';', $positions)], "\t", chr(0), chr(0));
+            fputcsv($fp, [$word, implode(';', $positions)], "\t", "\0", "\0");
         }
 
         $tempFile->delete();
@@ -1277,6 +1288,11 @@ class ExtractOcr extends AbstractJob
                 $lastMedia = $itemMedia;
             }
         }
+
+        if (!$lastMedia) {
+            return;
+        }
+
         $lastMedia->setPosition(++$key);
 
         $lastMedia->setMediaType($this->targetMediaType);
@@ -1355,7 +1371,7 @@ class ExtractOcr extends AbstractJob
         if (!$result) {
             $this->logger->err(new Message(
                 'The directory "%1$s" is not writeable: %2$s.', // @translate
-                $dirPath, error_get_last()['message']
+                $dirPath, error_get_last()['message'] ?? 'unknown error'
             ));
             return null;
         }
