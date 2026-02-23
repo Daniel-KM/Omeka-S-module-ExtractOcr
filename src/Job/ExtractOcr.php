@@ -121,6 +121,11 @@ class ExtractOcr extends AbstractJob
     protected $stats = [];
 
     /**
+     * @var \Transliterator|false|null
+     */
+    protected $transliterator;
+
+    /**
      * @brief Attach attracted ocr data from pdf with item
      */
     public function perform(): void
@@ -1403,15 +1408,18 @@ class ExtractOcr extends AbstractJob
      */
     protected function normalize($input): string
     {
-        if (extension_loaded('intl')) {
-            $transliterator = \Transliterator::createFromRules(':: NFD; :: [:Nonspacing Mark:] Remove; :: NFC;');
-            $string = $transliterator->transliterate((string) $input);
-        } elseif (extension_loaded('iconv')) {
-            $string = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', (string) $input);
-        } else {
-            $string = $input;
+        if ($this->transliterator === null) {
+            $this->transliterator = extension_loaded('intl')
+                ? (\Transliterator::createFromRules(':: NFD; :: [:Nonspacing Mark:] Remove; :: NFC;') ?: false)
+                : false;
         }
-        return (string) $string;
+        if ($this->transliterator) {
+            return (string) $this->transliterator->transliterate((string) $input);
+        }
+        if (extension_loaded('iconv')) {
+            return (string) iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', (string) $input);
+        }
+        return (string) $input;
     }
 
     protected function listMediaImagesData(ItemRepresentation $item): array
