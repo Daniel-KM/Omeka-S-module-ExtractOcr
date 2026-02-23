@@ -825,8 +825,6 @@ class ExtractOcr extends AbstractJob
         $dom->strictErrorChecking = false;
         $dom->validateOnParse = false;
         $dom->recover = true;
-        // $dom->preserveWhiteSpace = true;
-        // $dom->substituteEntities = true;
         $result = (string) $dom->saveHTML();
         return html_entity_decode($result, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5);
     }
@@ -1201,8 +1199,9 @@ class ExtractOcr extends AbstractJob
         try {
             $domXml = dom_import_simplexml($simpleXml);
             $domXsl = new DOMDocument('1.1', 'UTF-8');
-            $domXsl->load($xsltPath);
+            $domXsl->load($xsltPath, LIBXML_NONET);
             $proc = new XSLTProcessor();
+            $proc->setSecurityPrefs(XSL_SECPREF_CREATE_DIRECTORY | XSL_SECPREF_WRITE_FILE | XSL_SECPREF_READ_NETWORK | XSL_SECPREF_WRITE_NETWORK);
             $proc->importStyleSheet($domXsl);
             $proc->setParameter('', $params);
             return $proc->transformToDoc($domXml) ?: null;
