@@ -14,6 +14,11 @@ use Omeka\Stdlib\Message;
 
 class Module extends AbstractModule
 {
+    /**
+     * @var int[]
+     */
+    protected static array $pendingExtractOcrItemIds = [];
+
     public function getConfig()
     {
         return include __DIR__ . '/config/module.config.php';
@@ -372,18 +377,46 @@ class Module extends AbstractModule
             return;
         }
 
-        $params = [
-            'mode' => 'all',
-            'base_uri' => $this->getBaseUri(),
-            'item_id' => $item->getId(),
-            // FIXME Currently impossible to save text with event api.update.post.
-            'manual' => true,
-        ];
-        $services->get('Omeka\Job\Dispatcher')->dispatch(\ExtractOcr\Job\ExtractOcr::class, $params);
+        // Accumulate item ids for a single deferred job instead of dispatching
+        // one job per resource during batch updates.
+        if (empty(self::$pendingExtractOcrItemIds)) {
+            register_shutdown_function([$this, 'dispatchPendingExtractOcr']);
+            $messenger = $services->get('ControllerPluginManager')->get('messenger');
+            $message = new Message('Extracting OCR in background.'); // @translate
+            $messenger->addNotice($message);
+        }
+        self::$pendingExtractOcrItemIds[] = $item->getId();
+    }
 
-        $messenger = $services->get('ControllerPluginManager')->get('messenger');
-        $message = new Message('Extracting OCR in background.'); // @translate
-        $messenger->addNotice($message);
+    /**
+     * Dispatch a single ExtractOcr job for all accumulated item ids.
+     *
+     * Called via register_shutdown_function() to batch all items from a single
+     * request or batch update into one job.
+     */
+    public function dispatchPendingExtractOcr(): void
+    {
+        if (empty(self::$pendingExtractOcrItemIds)) {
+            return;
+        }
+
+        $itemIds = array_unique(self::$pendingExtractOcrItemIds);
+        self::$pendingExtractOcrItemIds = [];
+        try {
+            $services = $this->getServiceLocator();
+            $params = [
+                'mode' => 'all',
+                'base_uri' => $this->getBaseUri(),
+                'item_ids' => implode(' ', $itemIds),
+                // FIXME Currently impossible to save text with
+                // event api.update.post.
+                'manual' => true,
+            ];
+            $services->get('Omeka\Job\Dispatcher')
+                ->dispatch(\ExtractOcr\Job\ExtractOcr::class, $params);
+        } catch (\Throwable $e) {
+            // Silently fail during shutdown.
+        }
     }
 
     /**
