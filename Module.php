@@ -293,7 +293,9 @@ class Module extends AbstractModule
         $targetTypesFiles = array_intersect($targetTypesFiles, array_flip($extensions));
         $targetTypesMedia = $settings->get('extractocr_types_media') ?: [];
         $targetTypesMedia = array_intersect($targetTypesMedia, array_flip($extensions));
-        if (!$targetTypesFiles && !$targetTypesMedia ) {
+        $targetContentStore = $settings->get('extractocr_content_store') ?: [];
+        $targetContentStore = array_intersect($targetContentStore, ['item', 'media_pdf', 'media_extracted']);
+        if (!$targetTypesFiles && !$targetTypesMedia && !$targetContentStore) {
             return;
         }
 
@@ -365,6 +367,7 @@ class Module extends AbstractModule
 
         if (count(array_filter($existingFiles)) === count($existingFiles)
             && count(array_filter($existingMedias)) === count($existingMedias)
+            && !count($targetContentStore)
         ) {
             return;
         }

@@ -64,6 +64,11 @@ class ExtractOcr extends AbstractJob
     /**
      * @var bool
      */
+    protected $contentOnly = false;
+
+    /**
+     * @var bool
+     */
     protected $createMedia;
 
     /**
@@ -197,7 +202,9 @@ class ExtractOcr extends AbstractJob
         $targetTypesFiles = array_values(array_intersect(array_keys($formats), $targetTypesFiles));
         $targetTypesMedia = $settings->get('extractocr_types_media') ?: [];
         $targetTypesMedia = array_values(array_intersect(array_keys($formats), $targetTypesMedia));
-        if (!count($targetTypesFiles) && !count($targetTypesMedia)) {
+        $targetContentStore = $settings->get('extractocr_content_store') ?: [];
+        $targetContentStore = array_intersect($targetContentStore, ['item', 'media_pdf', 'media_extracted']);
+        if (!count($targetTypesFiles) && !count($targetTypesMedia) && !count($targetContentStore)) {
             $this->logger->warn(
                 'No extract format to process.' // @translate
             );
@@ -233,7 +240,7 @@ class ExtractOcr extends AbstractJob
 
         // TODO Manage the case where there are multiple pdf by item (rare).
 
-        $contentStore = array_filter($settings->get('extractocr_content_store') ?? []);
+        $contentStore = &$targetContentStore;
         if ($contentStore) {
             $prop = $settings->get('extractocr_content_property');
             if ($prop) {
@@ -384,8 +391,13 @@ class ExtractOcr extends AbstractJob
         foreach ($targetTypesMedia as $targetType) {
             $create[] = ['format' => $targetType, 'create_media' => true];
         }
+        // Allow to store extracted text without creating files or media.
+        if (empty($create) && $contentStore) {
+            $create[] = ['format' => self::FORMAT_PDF2XML, 'create_media' => false, 'content_only' => true];
+        }
         foreach ($create as $key => $targetData) {
             $this->createMedia = $targetData['create_media'];
+            $this->contentOnly = !empty($targetData['content_only']);
             $this->targetFormat = $targetData['format'];
             $this->targetDirPath = $dirPaths[$this->targetFormat];
             $this->targetExtension = $extensions[$this->targetFormat];
@@ -496,7 +508,9 @@ class ExtractOcr extends AbstractJob
                 $countPdf, $totalToProcess, $item->id(), $pdfMedia->id(), $pdfMedia->source())
             );
 
-            if ($mode === 'all' || $mode === 'existing') {
+            if ($this->contentOnly) {
+                // No file or media to check, skip to text extraction.
+            } elseif ($mode === 'all' || $mode === 'existing') {
                 if ($searchExistingOcrFile) {
                     @unlink($localSearchFilepath);
                     $this->logger->info(new Message(
@@ -549,7 +563,9 @@ class ExtractOcr extends AbstractJob
             $tempFile = $this->extractOcrFromPdfMediaToTempFile($pdfMedia);
             if ($tempFile) {
                 $textContent = $this->extractTextContent($pdfMedia, $tempFile);
-                if ($this->createMedia) {
+                if ($this->contentOnly) {
+                    // No file or media to create, text stored below.
+                } elseif ($this->createMedia) {
                     // Do not create is only for media.
                     $doNotCreate = !in_array($this->targetFormat, [self::FORMAT_TSV, self::FORMAT_TSV_BY_WORD])
                         && !$this->createEmptyFile
@@ -585,7 +601,7 @@ class ExtractOcr extends AbstractJob
                 }
                 $tempFile->delete();
 
-                if ($hasOcrFile || $ocrMedia) {
+                if ($hasOcrFile || $ocrMedia || $this->contentOnly) {
                     // Text content is already stored in media ocr.
                     if ($this->store['media_pdf']) {
                         $this->storeContentInProperty($pdfMedia, $textContent);
@@ -729,8 +745,14 @@ class ExtractOcr extends AbstractJob
     {
         // For tsv, reextract text from source.
         $isTsv = in_array($this->targetFormat, [self::FORMAT_TSV, self::FORMAT_TSV_BY_WORD]);
+        if ($isTsv && !$this->propertyId) {
+            return null;
+        }
+
+        $localTempFile = null;
         if ($isTsv || !$tempFile) {
-            $tempFile = $this->extractOcrFromPdfMediaToTempFile($pdfMedia, true);
+            $localTempFile = $this->extractOcrFromPdfMediaToTempFile($pdfMedia, true);
+            $tempFile = $localTempFile;
         }
 
         if (!$tempFile) {
@@ -739,6 +761,11 @@ class ExtractOcr extends AbstractJob
 
         $tempPath = $tempFile->getTempPath();
         $xmlContent = (string) file_get_contents($tempPath);
+
+        // Clean up the locally created temp file.
+        if ($localTempFile) {
+            $localTempFile->delete();
+        }
 
         // The content can be reextracted through pdftotext, that may return a
         // different layout with options -layout or -raw.
@@ -1177,11 +1204,17 @@ class ExtractOcr extends AbstractJob
             }
         }
 
+        // TODO Check it is working only with job, not the manual edition.
+        // With append, there is no need to pass all property values.
+        // TODO Don't use json_decode(json_encode()).
+        // $resourceJson = json_decode(json_encode($resource), true);
+        // $resourceJson[$this->property->term()][] = $contentValue;
+        $resourceJson = [$this->property->term() => [$contentValue]];
+
         $this->api->update(
             $resource->resourceName(),
             $resource->id(),
-            // With append, there is no need to pass all property values.
-            [$this->property->term() => [$contentValue]],
+            $resourceJson,
             [],
             ['isPartial' => true, 'collectionAction' => 'append']
         );
