@@ -808,13 +808,18 @@ class ExtractOcr extends AbstractJob
      */
     protected function extractTextFromAlto(string $content): string
     {
-        $simpleXml = simplexml_load_string($content);
+        $simpleXml = simplexml_load_string($content, null, LIBXML_NONET);
+        if ($simpleXml === false) {
+            return '';
+        }
+
         $modulePath = dirname(__DIR__, 2);
         $xsltPath = $modulePath . '/data/xsl/alto_to_text.xsl';
         $dom = $this->processXslt($simpleXml, $xsltPath);
         if (!$dom) {
             return '';
         }
+
         $dom->formatOutput = false;
         $dom->strictErrorChecking = false;
         $dom->validateOnParse = false;
@@ -981,7 +986,6 @@ class ExtractOcr extends AbstractJob
             $dom->validateOnParse = false;
             $dom->recover = true;
             $dom->preserveWhiteSpace = false;
-            $dom->substituteEntities = true;
             $result = $dom->save($tempFilepath);
             if (!$result) {
                 if ($tempPath && file_exists($tempPath)) {
@@ -1025,10 +1029,10 @@ class ExtractOcr extends AbstractJob
             | LIBXML_COMPACT
             | LIBXML_NOBLANKS
             | LIBXML_PARSEHUGE
+            // Avoid issue and security when network is unavailable.
+            | LIBXML_NONET
             // | LIBXML_NOCDATA
             // | LIBXML_NOENT
-            // Avoid issue when network is unavailable.
-            // | LIBXML_NONET
         );
 
         if ($xml === false) {
@@ -1091,11 +1095,7 @@ class ExtractOcr extends AbstractJob
                     $hasRow = true;
                 } else {
                     $word = mb_strtolower($word, 'UTF-8');
-                    if (isset($resultTsv[$word])) {
-                        $resultTsv[$word][1] .= ';' . $indexXmlPage . ':' . $xywh;
-                    } else {
-                        $resultTsv[$word] = [$word, $indexXmlPage . ':' . $xywh];
-                    }
+                    $resultTsv[$word][] = $indexXmlPage . ':' . $xywh;
                 }
             }
         }
@@ -1116,8 +1116,16 @@ class ExtractOcr extends AbstractJob
         }
 
         $fp = fopen($tsvFilepath, 'w');
-        foreach ($resultTsv as $row) {
-            fputcsv($fp, $row, "\t", chr(0), chr(0));
+        if ($fp === false) {
+            $this->logger->err(new Message(
+                'Unable to open file "%s" for writing.', // @translate
+                $tsvFilepath
+            ));
+            $tempFile->delete();
+            return false;
+        }
+        foreach ($resultTsv as $word => $positions) {
+            fputcsv($fp, [$word, implode(';', $positions)], "\t", chr(0), chr(0));
         }
 
         $tempFile->delete();
@@ -1143,7 +1151,7 @@ class ExtractOcr extends AbstractJob
         $dom->validateOnParse = false;
         $dom->recover = true;
         try {
-            $result = $dom->loadXML($xmlContent);
+            $result = $dom->loadXML($xmlContent, LIBXML_NONET);
             $result = $result ? simplexml_import_dom($dom) : null;
         } catch (Exception $e) {
             $result = null;
