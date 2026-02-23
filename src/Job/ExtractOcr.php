@@ -766,7 +766,8 @@ class ExtractOcr extends AbstractJob
      */
     protected function extractTextContent(MediaRepresentation $pdfMedia, ?TempFile $tempFile = null): ?string
     {
-        // For tsv, reextract text from source.
+        // For tsv, text content is only needed for property storage.
+        // Skip the expensive re-extraction when no property is configured.
         $isTsv = in_array($this->targetFormat, [self::FORMAT_TSV, self::FORMAT_TSV_BY_WORD]);
         if ($isTsv && !$this->propertyId) {
             return null;
