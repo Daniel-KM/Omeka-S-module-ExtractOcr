@@ -135,4 +135,4 @@ Copyright
 ---------
 
 * Copyright Syvain Machefert, Université Bordeaux 3 (see [symac](https://github.com/symac))
-* Copyright Daniel Berthereau, 2020-2025 (see [Daniel-KM](https://gitlab.com/Daniel-KM) on GitLab)
+* Copyright Daniel Berthereau, 2020-2026 (see [Daniel-KM](https://gitlab.com/Daniel-KM) on GitLab)
