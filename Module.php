@@ -93,7 +93,7 @@ class Module extends AbstractModule
         }
 
         $settings->set('extractocr_types_files', [
-            'text/tab-separated-values',
+            'text/tab-separated-values;by-word',
             'application/alto+xml',
         ]);
 
