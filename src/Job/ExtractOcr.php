@@ -145,6 +145,9 @@ class ExtractOcr extends AbstractJob
         $this->api = $services->get('Omeka\ApiManager');
         $this->fixUtf8 = $helpers->has('FixUtf8') ? $helpers->get('FixUtf8') : null;
         $this->logger = $services->get('Omeka\Logger');
+        $referenceIdProcessor = new \Laminas\Log\Processor\ReferenceId();
+        $referenceIdProcessor->setReferenceId('extract-ocr/extract-ocr/job_' . $this->job->getId());
+        $this->logger->addProcessor($referenceIdProcessor);
         $this->tempFileFactory = $services->get('Omeka\File\TempFileFactory');
         $this->cli = $services->get('Omeka\Cli');
         $this->entityManager = $services->get('Omeka\EntityManager');
