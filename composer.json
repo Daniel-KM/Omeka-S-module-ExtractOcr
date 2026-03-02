@@ -1,5 +1,5 @@
 {
-    "name": "daniel-km/omeka-s-module-extractocr",
+    "name": "daniel-km/omeka-s-module-extract-ocr",
     "type": "omeka-s-module",
     "description": "Module for Omeka S: Extract text layer from a pdf and attach it to item as a xml file, formatted with standard \"alto\" or simple \"pdf2xml\" or common \"tsv\". The process uses the command line tool pdftohtml of poppler.",
     "keywords": [
