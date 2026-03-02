@@ -1506,7 +1506,15 @@ class ExtractOcr extends AbstractJob
         $filepath = ($filename = $media->filename())
             ? $this->basePath . '/original/' . $filename
             : $media->originalUrl();
-        $size = getimagesize($filepath);
+        $size = @getimagesize($filepath);
+        // EXIF orientations 5-8 indicate a 90° or 270°
+        // rotation, so width and height must be swapped.
+        if ($size) {
+            $exif = @exif_read_data($filepath);
+            if ($exif && !empty($exif['Orientation']) && $exif['Orientation'] >= 5) {
+                [$size[0], $size[1]] = [$size[1], $size[0]];
+            }
+        }
         return $size
             ? ['width' => $size[0], 'height' => $size[1]]
             : ['width' => 0, 'height' => 0];
