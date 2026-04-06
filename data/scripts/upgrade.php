@@ -57,7 +57,7 @@ if (version_compare((string) $oldVersion, '3.4.7', '<')) {
             $translator->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
             $basePath . '/temp'
         );
-        throw new ModuleCannotInstallException($message);
+        throw new ModuleCannotInstallException((string) $message);
     }
 
     if (!$this->checkDestinationDir($basePath . '/iiif-search')) {
@@ -65,7 +65,7 @@ if (version_compare((string) $oldVersion, '3.4.7', '<')) {
             $translator->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
             $basePath . '/iiif-search'
         );
-        throw new ModuleCannotInstallException($message);
+        throw new ModuleCannotInstallException((string) $message);
     }
 
     if (!$this->checkDestinationDir($basePath . '/alto')) {
@@ -73,7 +73,7 @@ if (version_compare((string) $oldVersion, '3.4.7', '<')) {
             $translator->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
             $basePath . '/alto'
         );
-        throw new ModuleCannotInstallException($message);
+        throw new ModuleCannotInstallException((string) $message);
     }
 
     if (!$this->checkDestinationDir($basePath . '/pdf2xml')) {
@@ -81,7 +81,7 @@ if (version_compare((string) $oldVersion, '3.4.7', '<')) {
             $translator->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
             $basePath . '/pdf2xml'
         );
-        throw new ModuleCannotInstallException($message);
+        throw new ModuleCannotInstallException((string) $message);
     }
 
     $contentStore = $settings->get('extractocr_content_store', []);
@@ -130,7 +130,7 @@ if (version_compare((string) $oldVersion, '3.4.8', '<')) {
             $translator->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
             $dirpath
         );
-        throw new ModuleCannotInstallException($message);
+        throw new ModuleCannotInstallException((string) $message);
     }
 
     foreach (scandir($dirpath) ?: [] as $filename) {
@@ -162,7 +162,7 @@ if (version_compare((string) $oldVersion, '3.4.8', '<')) {
             $translator->translate('The directory "%s" is not writeable. Fix rights or create it manually.'), // @translate
             $dirpath
         );
-        throw new ModuleCannotInstallException($message);
+        throw new ModuleCannotInstallException((string) $message);
     }
 
     foreach (scandir($dirpath) ?: [] as $filename) {
