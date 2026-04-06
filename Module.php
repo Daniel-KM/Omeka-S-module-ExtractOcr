@@ -14,10 +14,6 @@ use Omeka\Stdlib\Message;
 
 class Module extends AbstractModule
 {
-    /**
-     * @var int[]
-     */
-    protected static array $pendingExtractOcrItemIds = [];
 
     public function getConfig()
     {
@@ -376,45 +372,38 @@ class Module extends AbstractModule
             return;
         }
 
-        // Accumulate item ids for a single deferred job instead of dispatching
-        // one job per resource during batch updates.
-        if (empty(self::$pendingExtractOcrItemIds)) {
-            register_shutdown_function([$this, 'dispatchPendingExtractOcr']);
-            $messenger = $services->get('ControllerPluginManager')->get('messenger');
-            $message = new Message('Extracting OCR in background.'); // @translate
-            $messenger->addNotice($message);
-        }
-        self::$pendingExtractOcrItemIds[] = $item->getId();
-    }
-
-    /**
-     * Dispatch a single ExtractOcr job for all accumulated item ids.
-     *
-     * Called via register_shutdown_function() to batch all items from a single
-     * request or batch update into one job.
-     */
-    public function dispatchPendingExtractOcr(): void
-    {
-        if (empty(self::$pendingExtractOcrItemIds)) {
-            return;
-        }
-
-        $itemIds = array_unique(self::$pendingExtractOcrItemIds);
-        self::$pendingExtractOcrItemIds = [];
-        try {
-            $services = $this->getServiceLocator();
-            $params = [
-                'mode' => 'all',
-                'base_uri' => $this->getBaseUri(),
-                'item_ids' => implode(' ', $itemIds),
-                // FIXME Currently impossible to save text with
-                // event api.update.post.
-                'manual' => true,
-            ];
-            $services->get('Omeka\Job\Dispatcher')
-                ->dispatch(\ExtractOcr\Job\ExtractOcr::class, $params);
-        } catch (\Throwable $e) {
-            // Silently fail during shutdown.
+        // Use deferred job to avoid to run one job by resource.
+        $baseUri = $this->getBaseUri();
+        if ($services->has('Common\DeferredJobDispatch')) {
+            $services->get('Common\DeferredJobDispatch')->defer(
+                \ExtractOcr\Job\ExtractOcr::class,
+                'extractocr',
+                ['item_ids' => $item->getId()],
+                function (string $key, array $allParams)
+                    use ($baseUri)
+                {
+                    $ids = [];
+                    foreach ($allParams as $p) {
+                        $ids[] = $p['item_ids'];
+                    }
+                    return [
+                        'mode' => 'all',
+                        'base_uri' => $baseUri,
+                        'item_ids' => implode(' ', array_unique($ids)),
+                        'manual' => true,
+                    ];
+                }
+            );
+        } else {
+            $services->get(\Omeka\Job\Dispatcher::class)->dispatch(
+                \ExtractOcr\Job\ExtractOcr::class,
+                [
+                    'mode' => 'all',
+                    'base_uri' => $baseUri,
+                    'item_ids' => (string) $item->getId(),
+                    'manual' => true,
+                ]
+            );
         }
     }
 
