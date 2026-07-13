@@ -1,14 +1,15 @@
 {
     "name": "daniel-km/omeka-s-module-extract-ocr",
     "type": "omeka-s-module",
-    "description": "Module for Omeka S: Extract text layer from a pdf and attach it to item as a xml file, formatted with standard \"alto\" or simple \"pdf2xml\" or common \"tsv\". The process uses the command line tool pdftohtml of poppler.",
+    "description": "Module for Omeka S: (Deprecated) Extract text layer from a pdf and attach it to item as a xml file, formatted with standard \"alto\" or simple \"pdf2xml\" or common \"tsv\". The process uses the command line tool pdftohtml of poppler.",
     "keywords": [
         "Omeka S",
         "Omeka S module",
         "ocr",
         "pdf",
         "alto",
-        "tsv"
+        "tsv",
+        "deprecated"
     ],
     "license": "GPL-3.0-or-later",
     "homepage": "http://github.com/bubdxm/Omeka-S-module-ExtractOcr",
@@ -30,7 +31,7 @@
         "issues": "http://github.com/bubdxm/Omeka-S-module-ExtractOcr/-/issues",
         "forum": "https://forum.omeka.org/"
     },
-    "_require (not set until Omeka S merges PR #2412)": {
+    "_require (not set until Omeka S merges PR #2432)": {
         "omeka/omeka-s": "^4.0"
     },
     "autoload": {

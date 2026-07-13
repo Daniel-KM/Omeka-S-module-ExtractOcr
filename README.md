@@ -1,5 +1,9 @@
-Extract OCR (module for Omeka S)
+Extract OCR (module for Omeka S) [archived, features moved to module IIIF Search]
 ================================
+
+> **IMPORTANT**
+> This module is deprecated and replaced by the module [IIIF Search](https://github.com/bubdxm/Omeka-S-module-IiifSearch).
+> Install it for an automatic upgrade.
 
 
 Module for Omeka S to extract OCR text in XML and TSV from PDF files, allowing
